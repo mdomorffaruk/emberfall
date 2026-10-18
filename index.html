@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EMBERFALL · Feed the Flame</title>
+<meta name="description" content="The world went cold. You didn't. A neon survival roguelite. Free demo: First Spark.">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='34' fill='%23ff8c2b'/><circle cx='50' cy='50' r='18' fill='%23ffe9b0'/></svg>">
+</head>
+<body>
+<div id="stage">
+  <canvas id="game" width="1280" height="720"></canvas>
+
+  <div id="ui">
+
+    <!-- ===== HUD (gameplay only) ===== -->
+    <div id="hud" class="hidden">
+      <div id="hud-top-left">
+        <div id="hpbar" class="bar"><div id="hpfill" class="fill"></div><span id="hptext">100</span></div>
+        <div id="xpbar" class="bar"><div id="xpfill" class="fill"></div></div>
+        <div id="leveltext">LV 1</div>
+      </div>
+      <div id="hud-top-right">
+        <div id="timer">0:00</div>
+        <div id="score">0</div>
+        <div id="mult">x1.0</div>
+      </div>
+      <div id="sectorname">SECTOR 1 · THE COOLING</div>
+      <div id="dashwrap"><span id="dashlabel">DASH</span><div id="dashdot"></div></div>
+      <div id="bosswrap" class="hidden"><div id="bossname">FROSTBOUND</div><div id="bossbar" class="bar"><div id="bossfill" class="fill"></div></div></div>
+    </div>
+
+    <!-- ===== TITLE ===== -->
+    <div id="screen-title" class="screen">
+      <div class="title-block">
+        <h1 class="logo">EMBERFALL</h1>
+        <p class="tagline">The world went cold.<br>You didn't.</p>
+      </div>
+      <div class="menu">
+        <button id="btn-play" class="btn btn-primary">IGNITE</button>
+        <button id="btn-how" class="btn">HOW TO PLAY</button>
+        <button id="btn-sound" class="btn btn-small">SOUND: ON</button>
+        <button id="btn-store-title" class="btn btn-gold">FULL FLAME · $4.99</button>
+      </div>
+      <p class="footnote" id="title-edition">FIRST SPARK · FREE EDITION</p>
+    </div>
+
+    <!-- ===== HOW TO PLAY ===== -->
+    <div id="screen-how" class="screen hidden">
+      <div class="panel">
+        <h2>HOW TO PLAY</h2>
+        <div class="how-grid">
+          <div><span class="key">W A S D</span><span class="key">←↑↓→</span><p>Move</p></div>
+          <div><span class="key">SPACE</span><p>Dash · brief invulnerability</p></div>
+          <div><span class="key">ESC</span><p>Pause</p></div>
+          <div><span class="key">1</span><span class="key">2</span><span class="key">3</span><p>Pick upgrade</p></div>
+          <div><p class="wide">Your flame fires <b>automatically</b>. Collect embers to level up. Beat Sector 2 to clear the free edition. On phones and tablets: left side to move, right side to dash.</p></div>
+        </div>
+        <button id="btn-how-back" class="btn">BACK</button>
+      </div>
+    </div>
+
+    <!-- ===== CHARACTER SELECT ===== -->
+    <div id="screen-chars" class="screen hidden">
+      <h2 class="screen-heading">CHOOSE YOUR FLAME</h2>
+      <div id="char-grid" class="char-grid"></div>
+      <div class="row">
+        <button id="btn-chars-back" class="btn">BACK</button>
+        <button id="btn-chars-go" class="btn btn-primary">ENTER THE COLD</button>
+        <button id="btn-store-chars" class="btn btn-gold">FULL FLAME · $4.99</button>
+      </div>
+    </div>
+
+    <!-- ===== LEVEL UP ===== -->
+    <div id="screen-levelup" class="screen hidden">
+      <h2 class="screen-heading glow">THE FLAME GROWS</h2>
+      <div id="upgrade-grid" class="upgrade-grid"></div>
+      <p class="hint">Click a card or press <span class="key">1</span><span class="key">2</span><span class="key">3</span></p>
+    </div>
+
+    <!-- ===== PAUSE ===== -->
+    <div id="screen-pause" class="screen hidden">
+      <div class="panel">
+        <h2>PAUSED</h2>
+        <div class="menu">
+          <button id="btn-resume" class="btn btn-primary">RESUME</button>
+          <button id="btn-quit" class="btn">ABANDON RUN</button>
+          <button id="btn-sound2" class="btn btn-small">SOUND: ON</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DEATH / VICTORY ===== -->
+    <div id="screen-death" class="screen hidden">
+      <div class="panel death-panel">
+        <h2 id="death-title">THE COLD TOOK YOU</h2>
+        <p id="death-sub" class="tagline"></p>
+        <div id="run-stats" class="stats"></div>
+        <div id="death-cta" class="cta-box hidden">
+          <p class="cta-line" id="death-cta-line"></p>
+          <button id="btn-store-death" class="btn btn-gold btn-big">FULL FLAME · $4.99</button>
+        </div>
+        <div class="row">
+          <button id="btn-retry" class="btn btn-primary">RETRY</button>
+          <button id="btn-menu" class="btn">MAIN MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== STORE / CHECKOUT / LICENSE ===== -->
+    <div id="screen-store" class="screen hidden">
+      <div class="panel store-panel">
+        <h2 class="glow-gold">FULL FLAME</h2>
+        <p class="price">$4.99 <span class="price-note">one-time · no ads · no accounts · yours forever</span></p>
+        <ul class="feature-list">
+          <li><b>Sectors 3 + 4</b> · The Iron Dark, The Whiteout</li>
+          <li><b>ENDLESS mode</b></li>
+          <li><b>3 new flames</b> · Wisp, Cinder, Moth</li>
+        </ul>
+
+        <div id="store-buy">
+          <button id="btn-buy" class="btn btn-gold btn-big">BUY FULL FLAME</button>
+        </div>
+
+        <div id="checkout" class="hidden">
+          <div class="checkout-box">
+            <p class="checkout-title">ORDER</p>
+            <p>Order <b id="order-id">EF-ORD-000000</b></p>
+            <p>Full Flame Edition · <b>$4.99 USD</b></p>
+            <p class="small">Live checkout is Stripe / itch.io.<br>
+            This test build issues a key instantly so you can try the full purchase path.</p>
+            <button id="btn-issue" class="btn btn-primary">PAY &amp; ISSUE KEY</button>
+          </div>
+        </div>
+
+        <div id="key-issued" class="hidden">
+          <div class="checkout-box gold-box">
+            <p class="checkout-title">PAID</p>
+            <p>Your key (shown once):</p>
+            <p class="license-key" id="issued-key">EF-XXXX-XXXX-XXXX</p>
+            <button id="btn-activate-issued" class="btn btn-primary">ACTIVATE</button>
+          </div>
+        </div>
+
+        <div id="activate">
+          <p class="small">Already own Full Flame? Activate your key:</p>
+          <div class="row">
+            <input id="key-input" type="text" placeholder="EF-XXXX-XXXX-XXXX" maxlength="19" autocomplete="off" spellcheck="false">
+            <button id="btn-activate" class="btn">ACTIVATE</button>
+          </div>
+          <p id="activate-msg" class="small err"></p>
+        </div>
+
+        <button id="btn-store-back" class="btn">BACK</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script src="js/core.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
