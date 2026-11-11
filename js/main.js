@@ -24,8 +24,17 @@ const App = {
     this.installTouchInput();
     this.resize();
     window.addEventListener('resize', () => this.resize());
-    window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 60));
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', () => this.resize());
+    // Android reports stale viewport sizes for a while after rotation:
+    // re-fit repeatedly so the layout always converges to the real size.
+    window.addEventListener('orientationchange', () => {
+      [60, 200, 500, 1000].forEach((ms) => setTimeout(() => this.resize(), ms));
+    });
+    if (window.visualViewport) {
+      // the URL bar appearing/hiding resizes the visible area
+      window.visualViewport.addEventListener('resize', () => this.resize());
+      window.visualViewport.addEventListener('scroll', () => this.resize());
+    }
+    document.addEventListener('fullscreenchange', () => { this.updateFsBtn(); this.resize(); });
 
     // long-press menu / text selection breaks touch play; kill it in touch mode only
     document.addEventListener('contextmenu', (e) => {
@@ -38,18 +47,27 @@ const App = {
     document.body.dataset.boot = 'ok';
   },
 
+  // the space the game may actually use: the VISIBLE viewport (browser
+  // bars, fullscreen and rotation included), never the physical screen
+  viewSize() {
+    const vv = window.visualViewport;
+    if (vv && vv.width > 0 && vv.height > 0) return { w: vv.width, h: vv.height };
+    return { w: window.innerWidth, h: window.innerHeight };
+  },
+
   // ---------------- responsive mode ----------------
   // Phones/tablets (coarse pointer, small side): the UI overlay is un-scaled
   // and laid out by CSS to fill the viewport; desktop keeps the 1280x720
   // design space scaled onto the letterboxed stage.
   computeMode() {
+    const vs = this.viewSize();
     const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
     const touchish = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
     const forced = new URLSearchParams(location.search).get('mobile') === '1'; // desktop preview of the phone UI
-    const small = Math.min(window.innerWidth, window.innerHeight) <= 900;
+    const small = Math.min(vs.w, vs.h) <= 900;
     this.touchMode = forced || ((coarse || touchish) && small);
     document.body.classList.toggle('ui-free', this.touchMode);
-    document.body.classList.toggle('portrait', window.innerHeight > window.innerWidth);
+    document.body.classList.toggle('portrait', vs.h > vs.w);
   },
 
   // ---------------- touch controls (phones/tablets) ----------------
@@ -164,23 +182,65 @@ const App = {
       if (App.game && App.game.state === 'playing') App.setPaused(true);
     });
     wrap.appendChild(pause);
+
+    // fullscreen toggle: always visible (menus and gameplay), top-right
+    const fs = document.createElement('button');
+    fs.id = 'fsbtn';
+    fs.title = 'Fullscreen';
+    fs.setAttribute('aria-label', 'Fullscreen');
+    fs.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      App.toggleFullscreen();
+    });
+    document.body.appendChild(fs);
+    this.fsBtn = fs;
+    this.updateFsBtn();
   },
 
   resize() {
     this.computeMode();
-    const s = Math.min(window.innerWidth / W, window.innerHeight / H);
+    const vs = this.viewSize();
+    this.lastVW = vs.w; this.lastVH = vs.h;
+    const s = Math.min(vs.w / W, vs.h / H);
     this.stage.style.width = Math.floor(W * s) + 'px';
     this.stage.style.height = Math.floor(H * s) + 'px';
+    // center the letterboxed canvas inside the visible area
+    this.stage.style.left = Math.floor((vs.w - W * s) / 2) + 'px';
+    this.stage.style.top = Math.floor((vs.h - H * s) / 2) + 'px';
     const ui = document.getElementById('ui');
     if (this.touchMode) {
-      // responsive mode: CSS (body.ui-free) makes #ui fill the viewport
-      ui.style.left = ''; ui.style.top = ''; ui.style.transform = '';
+      // responsive mode: #ui and #touchui are pinned to the visible area
+      // at its exact pixel size (CSS class sets position + 100% fallback)
+      ui.style.left = '0px'; ui.style.top = '0px'; ui.style.transform = '';
+      ui.style.width = Math.floor(vs.w) + 'px';
+      ui.style.height = Math.floor(vs.h) + 'px';
+      if (this.touchUI) {
+        this.touchUI.style.width = Math.floor(vs.w) + 'px';
+        this.touchUI.style.height = Math.floor(vs.h) + 'px';
+      }
     } else {
       // desktop: overlay the scaled 1280x720 design space exactly on the stage
-      ui.style.left = Math.floor((window.innerWidth - W * s) / 2) + 'px';
-      ui.style.top = Math.floor((window.innerHeight - H * s) / 2) + 'px';
+      ui.style.width = ''; ui.style.height = '';
+      ui.style.left = Math.floor((vs.w - W * s) / 2) + 'px';
+      ui.style.top = Math.floor((vs.h - H * s) / 2) + 'px';
       ui.style.transform = 'scale(' + s + ')';
     }
+  },
+
+  // ---------------- fullscreen (kills the browser bars) ----------------
+  toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        const p = document.documentElement.requestFullscreen();
+        if (p && p.catch) p.catch(() => {});
+      }
+    } catch (e) { /* not allowed / unsupported: the letterbox already fits */ }
+  },
+
+  updateFsBtn() {
+    if (this.fsBtn) this.fsBtn.classList.toggle('on', !!document.fullscreenElement);
   },
 
   startRun(charId) {
@@ -188,6 +248,10 @@ const App = {
     this.game = new Game(charId, mode);
     UI.showGameScreen();
     AudioSys.ensure();
+    // on phones the browser bars (URL bar, gesture hints) eat the arena:
+    // entering a run goes fullscreen so gameplay owns the whole screen.
+    // The button (top-right) exits; the letterbox still fits either way.
+    if (this.touchMode && !document.fullscreenElement) this.toggleFullscreen();
   },
 
   setPaused(p) {
@@ -246,6 +310,13 @@ const App = {
   loop(now) {
     const dt = Math.min(0.05, (now - (this._last || now)) / 1000);
     this._last = now;
+
+    // viewport watchdog: rotation, URL-bar and fullscreen changes can fire
+    // late (or never) on Android — catch them every frame instead of
+    // leaving the game laid out for a stale, larger screen.
+    const vs = this.viewSize();
+    if (vs.w !== this.lastVW || vs.h !== this.lastVH) this.resize();
+
     const ctx = this.ctx;
     const g = this.game;
 
@@ -404,6 +475,14 @@ function selfTest() {
     const m4 = Input.axis();
     if (m4.x !== 0 || m4.y !== 0) return fail('stick-not-released');
     App.abandonRun();
+
+    // 0d — viewport fit: the letterboxed stage and UI never exceed the
+    // visible screen, whatever rotation or browser bars did to it
+    App.resize();
+    const st = App.stage.getBoundingClientRect();
+    if (st.right > window.innerWidth + 1 || st.bottom > window.innerHeight + 1) return fail('stage-overflows-viewport');
+    if (st.left < -1 || st.top < -1) return fail('stage-offscreen');
+    if (document.body.classList.contains('is-touch') && !document.getElementById('fsbtn')) return fail('no-fsbtn');
 
     // 1 — license validation
     const good = makeLicenseKey();

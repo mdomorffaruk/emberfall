@@ -32,11 +32,10 @@ html, body {
 
 #stage {
   position: absolute;
-  left: 50%; top: 50%;
-  transform: translate(-50%, -50%);
+  left: 0; top: 0;
   touch-action: none;
   z-index: 0;
-  /* JS sets exact pixel size for letterboxing */
+  /* JS centers it inside the visible viewport and letterboxes to 16:9 */
 }
 
 #game {
@@ -62,8 +61,8 @@ html, body {
 /* responsive mode: the UI fills the real viewport, un-scaled */
 body.ui-free #ui {
   position: fixed;
-  inset: 0;
-  width: 100%; height: 100%;
+  left: 0; top: 0;
+  width: 100%; height: 100%;   /* JS refines to the exact visible-area pixels */
   transform: none;
 }
 
@@ -343,7 +342,7 @@ h2 {
 }
 #touchpause {
   position: absolute;
-  right: calc(12px + env(safe-area-inset-right));
+  right: calc(78px + env(safe-area-inset-right));   /* clear of the fullscreen button */
   top: calc(10px + env(safe-area-inset-top));
   width: 54px; height: 54px;
   border-radius: 10px;
@@ -355,37 +354,52 @@ h2 {
   touch-action: none;
 }
 #touchpause:active { transform: scale(0.92); background: rgba(38,58,92,0.95); }
+
+/* fullscreen toggle (touch devices): always visible, top-right.
+   Icon is drawn with CSS corner brackets — no glyph-font roulette. */
+#fsbtn {
+  position: fixed;
+  right: calc(12px + env(safe-area-inset-right));
+  top: calc(10px + env(safe-area-inset-top));
+  width: 56px; height: 56px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: rgba(20,32,54,0.85);
+  color: var(--text);
+  z-index: 6;
+  pointer-events: auto;
+  touch-action: none;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+#fsbtn::before, #fsbtn::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  pointer-events: none;
+}
+#fsbtn::before {
+  left: 11px; top: 11px;
+  border-left: 2px solid currentColor; border-top: 2px solid currentColor;
+}
+#fsbtn::after {
+  right: 11px; bottom: 11px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+}
+#fsbtn:active { transform: scale(0.92); background: rgba(38,58,92,0.95); }
+#fsbtn.on {
+  border-color: rgba(255,140,43,0.6);
+  box-shadow: 0 0 14px rgba(255,140,43,0.35);
+  color: var(--ember-hot);
+}
 body.is-touch .touch-el { display: flex; }
 body.is-touch #dashwrap { display: none; }  /* the DASH button shows this itself */
 .touch-el { display: none; }
 
-/* ============ ROTATE PROMPT (portrait phones) ============ */
-#rotate {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  background:
-    radial-gradient(ellipse at 50% 45%, rgba(30,20,10,0.35), rgba(3,6,12,0.97) 75%),
-    #04070d;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  text-align: center;
-}
-body.ui-free.portrait #rotate { display: flex; }
-.rotate-phone {
-  font-size: 64px;
-  line-height: 1;
-  animation: rotatehint 1.8s ease-in-out infinite;
-  filter: drop-shadow(0 0 18px rgba(255,140,43,0.5));
-}
-@keyframes rotatehint {
-  0%, 15% { transform: rotate(0deg); }
-  55%, 100% { transform: rotate(90deg); }
-}
-.rotate-note { font-size: 13px; color: var(--text-dim); letter-spacing: 1px; }
+/* ============ PORTRAIT (playable, letterboxed by width) ============ */
+/* The arena is 16:9; portrait letterboxes it by width instead of blocking.
+   The title screen carries a rotate/fullscreen tip instead. */
+#portrait-tip { display: none; }
+body.ui-free.portrait #portrait-tip { display: block; }
 
 /* ============ DEATH / STATS ============ */
 .death-panel { min-width: 480px; }
@@ -492,6 +506,7 @@ body.ui-free .panel {
   gap: 12px;
   max-width: min(680px, 94vw);
   max-height: 90vh;
+  max-height: 88dvh;  /* dvh tracks the URL bar; older browsers keep the vh line */
   overflow-y: auto;
 }
 
@@ -537,7 +552,7 @@ body.ui-free .feature-list { font-size: 12px; line-height: 1.55; }
 body.ui-free #key-input { font-size: 15px; padding: 10px 12px; width: min(240px, 60vw); }
 
 /* HUD anchors to the real screen edges, clear of notches and of the
-   pause button (top-right) */
+   pause + fullscreen buttons (top-right) */
 body.ui-free #hud-top-left {
   top: calc(8px + env(safe-area-inset-top));
   left: calc(12px + env(safe-area-inset-left));
@@ -545,7 +560,7 @@ body.ui-free #hud-top-left {
 }
 body.ui-free #hud-top-right {
   top: calc(8px + env(safe-area-inset-top));
-  right: calc(78px + env(safe-area-inset-right));
+  right: calc(142px + env(safe-area-inset-right));
 }
 body.ui-free #timer { font-size: clamp(18px, 5vh, 26px); }
 body.ui-free #score { font-size: 13px; }
