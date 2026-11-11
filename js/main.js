@@ -84,14 +84,27 @@ const App = {
     this.stick = stick;
 
     const DEAD = 0.14;          // below this the axis reads zero (no jitter)
-    const R = Math.max(48, Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.11)); // joystick radius, screen px
-    stick.style.width = stick.style.height = (R * 2 + 12) + 'px';
+    // base radius for the current screen; the player's settings multiply it
+    const baseR = () => {
+      const vs = this.viewSize();
+      return Math.max(44, Math.round(Math.min(vs.w, vs.h) * 0.11));
+    };
+    let R = Math.round(baseR() * Settings.get('stick'));
+    const sizeStick = () => {
+      stick.style.width = stick.style.height = (R * 2 + 12) + 'px';
+      const k = Math.round(R * 0.78);
+      knob.style.width = knob.style.height = k + 'px';
+      knob.style.margin = (-k / 2) + 'px 0 0 ' + (-k / 2) + 'px';
+    };
+    sizeStick();
     let pid = null;             // pointerId that owns the joystick
     let ox = 0, oy = 0;         // joystick origin, screen px
 
     const setKnob = (dx, dy) => { knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; };
 
     const start = (e) => {
+      R = Math.round(baseR() * Settings.get('stick'));
+      sizeStick();
       pid = e.pointerId;
       ox = e.clientX; oy = e.clientY;
       stick.style.left = (ox - R - 6) + 'px';
@@ -168,7 +181,7 @@ const App = {
       e.preventDefault();
       AudioSys.ensure();
       Input.pressed.add('Space');
-      if (navigator.vibrate) navigator.vibrate(12);
+      if (Settings.get('haptics') && navigator.vibrate) navigator.vibrate(12);
     });
     wrap.appendChild(dash);
     this.touchDash = dash;
@@ -241,6 +254,7 @@ const App = {
 
   updateFsBtn() {
     if (this.fsBtn) this.fsBtn.classList.toggle('on', !!document.fullscreenElement);
+    if (window.UI && UI.renderSettings) UI.renderSettings();
   },
 
   startRun(charId) {
@@ -417,8 +431,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const shot = parseInt(q.get('shot') || '0', 10);
     setTimeout(() => runAutotest(shot || 0), 300);
   }
-  // debug/verification hooks: ?ui=store|chars|how  ?demo=levelup|death
-  if (q.get('ui')) setTimeout(() => UI.showScreen('screen-' + q.get('ui')), 100);
+  // debug/verification hooks: ?ui=store|chars|how|settings  ?demo=levelup|death
+  if (q.get('ui') === 'settings') setTimeout(() => UI.openSettings('screen-title'), 100);
+  else if (q.get('ui')) setTimeout(() => UI.showScreen('screen-' + q.get('ui')), 100);
   if (q.get('demo')) setTimeout(() => {
     App.startRun('ember');
     const g = App.game;
@@ -474,6 +489,19 @@ function selfTest() {
     simPtr('pointerup', 101);
     const m4 = Input.axis();
     if (m4.x !== 0 || m4.y !== 0) return fail('stick-not-released');
+
+    // 0c2 — the joystick size setting really changes the on-screen stick
+    const prevStick = Settings.get('stick');
+    Settings.set('stick', 0.6);
+    simPtr('pointerdown', 201, Math.round(vw * 0.2), Math.round(vh * 0.6));
+    const smallW = App.stick.getBoundingClientRect().width;
+    simPtr('pointerup', 201);
+    Settings.set('stick', 1.2);
+    simPtr('pointerdown', 202, Math.round(vw * 0.2), Math.round(vh * 0.6));
+    const bigW = App.stick.getBoundingClientRect().width;
+    simPtr('pointerup', 202);
+    Settings.set('stick', prevStick);
+    if (!(smallW > 0 && bigW > smallW * 1.4)) return fail('stick-size-setting:' + smallW + '|' + bigW);
     App.abandonRun();
 
     // 0d — viewport fit: the letterboxed stage and UI never exceed the

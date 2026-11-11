@@ -42,7 +42,7 @@
       <div class="menu">
         <button id="btn-play" class="btn btn-primary">IGNITE</button>
         <button id="btn-how" class="btn">HOW TO PLAY</button>
-        <button id="btn-sound" class="btn btn-small">SOUND: ON</button>
+        <button id="btn-settings-title" class="btn">SETTINGS</button>
         <button id="btn-store-title" class="btn btn-gold">FULL FLAME · $4.99</button>
       </div>
       <p class="footnote" id="title-edition">FIRST SPARK · FREE EDITION</p>
@@ -88,8 +88,8 @@
         <h2>PAUSED</h2>
         <div class="menu">
           <button id="btn-resume" class="btn btn-primary">RESUME</button>
+          <button id="btn-settings-pause" class="btn">SETTINGS</button>
           <button id="btn-quit" class="btn">ABANDON RUN</button>
-          <button id="btn-sound2" class="btn btn-small">SOUND: ON</button>
         </div>
       </div>
     </div>
@@ -108,6 +108,41 @@
           <button id="btn-retry" class="btn btn-primary">RETRY</button>
           <button id="btn-menu" class="btn">MAIN MENU</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ===== SETTINGS ===== -->
+    <div id="screen-settings" class="screen hidden">
+      <div class="panel settings-panel">
+        <h2>SETTINGS</h2>
+
+        <div class="setting-row stack" id="row-stick">
+          <div class="setting-label">JOYSTICK SIZE <span id="stick-size-name" class="setting-value">SMALL</span></div>
+          <input id="stick-size" class="slider" type="range" min="60" max="150" step="5" value="80"
+                 aria-label="Joystick size">
+          <div class="stick-preview-wrap">
+            <div id="stick-preview"><div id="stick-preview-knob"></div></div>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">SOUND</div>
+          <button id="set-sound" class="btn btn-small">ON</button>
+        </div>
+        <div class="setting-row" id="row-haptics">
+          <div class="setting-label">VIBRATION</div>
+          <button id="set-haptics" class="btn btn-small">ON</button>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">SCREEN SHAKE</div>
+          <button id="set-shake" class="btn btn-small">ON</button>
+        </div>
+        <div class="setting-row" id="row-fullscreen">
+          <div class="setting-label">FULLSCREEN</div>
+          <button id="set-fs" class="btn btn-small">OFF</button>
+        </div>
+
+        <button id="btn-settings-back" class="btn">BACK</button>
       </div>
     </div>
 

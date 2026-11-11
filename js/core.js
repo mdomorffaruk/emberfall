@@ -118,7 +118,10 @@ const Juice = {
   shakeAmt: 0,
   hitStop: 0,
 
-  shake(amount) { this.shakeAmt = Math.min(26, this.shakeAmt + amount); },
+  shake(amount) {
+    if (!Settings.get('shake')) return;
+    this.shakeAmt = Math.min(26, this.shakeAmt + amount);
+  },
   stop(seconds) { this.hitStop = Math.max(this.hitStop, seconds); },
 
   update(dt) {
@@ -149,5 +152,27 @@ const Store = {
   },
   set(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* private mode etc */ }
+  }
+};
+
+// ---------------- Player settings (persisted) ----------------
+// stick: joystick radius multiplier (0.6 = small ... 1.5 = large)
+// sound persistence lives in AudioSys (ef_muted)
+const Settings = {
+  DEFAULTS: { stick: 0.8, haptics: true, shake: true },
+  data: null,
+
+  load() {
+    this.data = Object.assign({}, this.DEFAULTS, Store.get('ef_settings', {}) || {});
+    return this.data;
+  },
+  get(key) {
+    if (!this.data) this.load();
+    return this.data[key];
+  },
+  set(key, value) {
+    if (!this.data) this.load();
+    this.data[key] = value;
+    Store.set('ef_settings', this.data);
   }
 };

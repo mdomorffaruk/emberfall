@@ -39,7 +39,7 @@ const UI = {
   init() {
     const ids = [
       'screen-title', 'screen-how', 'screen-chars', 'screen-levelup',
-      'screen-pause', 'screen-death', 'screen-store'
+      'screen-pause', 'screen-death', 'screen-settings', 'screen-store'
     ];
     for (const id of ids) this.screens[id] = this.$(id);
 
@@ -77,7 +77,7 @@ const UI = {
     // --- pause ---
     this.$('btn-resume').onclick = () => { AudioSys.ui(); App.setPaused(false); };
     this.$('btn-quit').onclick = () => { AudioSys.ui(); App.abandonRun(); };
-    this.$('btn-sound2').onclick = () => UI.toggleSound();
+    this.$('btn-settings-pause').onclick = () => { AudioSys.ui(); UI.openSettings('screen-pause'); };
 
     // --- death / victory ---
     this.$('btn-retry').onclick = () => { AudioSys.uibig(); App.startRun(UI.selectedChar); };
@@ -130,20 +130,79 @@ const UI = {
       if (e.key === 'Enter') UI.$('btn-activate').click();
     });
 
-    // --- sound ---
-    this.$('btn-sound').onclick = () => UI.toggleSound();
+    // --- settings ---
+    this.$('btn-settings-title').onclick = () => { AudioSys.ui(); UI.openSettings('screen-title'); };
+    this.$('btn-settings-back').onclick = () => { AudioSys.ui(); UI.showScreen(UI.settingsReturnTo || 'screen-title'); };
+    this.$('stick-size').addEventListener('input', (e) => {
+      Settings.set('stick', parseInt(e.target.value, 10) / 100);
+      UI.renderSettings();
+    });
+    this.$('set-sound').onclick = () => UI.toggleSound();
+    this.$('set-haptics').onclick = () => {
+      AudioSys.ui();
+      Settings.set('haptics', !Settings.get('haptics'));
+      UI.renderSettings();
+    };
+    this.$('set-shake').onclick = () => {
+      AudioSys.ui();
+      Settings.set('shake', !Settings.get('shake'));
+      UI.renderSettings();
+    };
+    this.$('set-fs').onclick = () => { AudioSys.ui(); App.toggleFullscreen(); };
 
+    this.applySound();
     this.renderChars();
     this.refreshEntitlements();
     this.showScreen('screen-title');
   },
 
+  // ---------- settings ----------
+  openSettings(from) {
+    this.settingsReturnTo = from;
+    this.renderSettings();
+    this.showScreen('screen-settings');
+  },
+
+  renderSettings() {
+    if (!this.$('screen-settings')) return;
+    const stick = Settings.get('stick');
+    const slider = this.$('stick-size');
+    if (slider) slider.value = Math.round(stick * 100);
+    const name = stick < 0.9 ? 'SMALL' : (stick < 1.2 ? 'MEDIUM' : 'LARGE');
+    if (this.$('stick-size-name')) this.$('stick-size-name').textContent = name;
+
+    // live preview at the player's real stick size
+    const vs = App.viewSize();
+    const R = Math.round(Math.max(44, Math.min(vs.w, vs.h) * 0.11) * stick);
+    const ring = this.$('stick-preview');
+    const knob = this.$('stick-preview-knob');
+    if (ring) {
+      ring.style.width = ring.style.height = (R * 2 + 12) + 'px';
+      knob.style.width = knob.style.height = Math.round(R * 0.78) + 'px';
+    }
+
+    const touch = document.body.classList.contains('is-touch');
+    const row = (id, show) => { if (this.$(id)) this.$(id).style.display = show ? '' : 'none'; };
+    row('row-stick', touch);
+    row('row-haptics', touch);
+    row('row-fullscreen', touch);
+
+    this.$('set-sound').textContent = AudioSys.muted ? 'OFF' : 'ON';
+    this.$('set-haptics').textContent = Settings.get('haptics') ? 'ON' : 'OFF';
+    this.$('set-shake').textContent = Settings.get('shake') ? 'ON' : 'OFF';
+    this.$('set-fs').textContent = document.fullscreenElement ? 'ON' : 'OFF';
+  },
+
   toggleSound() {
     AudioSys.ensure();
     const muted = AudioSys.toggleMuted();
-    this.$('btn-sound').textContent = 'SOUND: ' + (muted ? 'OFF' : 'ON');
-    this.$('btn-sound2').textContent = 'SOUND: ' + (muted ? 'OFF' : 'ON');
+    this.applySound();
     if (!muted) AudioSys.ui();
+  },
+
+  applySound() {
+    const label = AudioSys.muted ? 'OFF' : 'ON';
+    if (this.$('set-sound')) this.$('set-sound').textContent = label;
   },
 
   showScreen(id) {
