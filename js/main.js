@@ -21,27 +21,127 @@ const App = {
 
     Input.init();
     UI.init();
+    this.installTouchInput();
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 60));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', () => this.resize());
 
-    if (('ontouchstart' in window) || navigator.maxTouchPoints > 0) this.initTouch();
+    // long-press menu / text selection breaks touch play; kill it in touch mode only
+    document.addEventListener('contextmenu', (e) => {
+      if (App.touchMode) e.preventDefault();
+    });
+
+    if (('ontouchstart' in window) || navigator.maxTouchPoints > 0) this.initTouchUI();
 
     requestAnimationFrame((t) => this.loop(t));
     document.body.dataset.boot = 'ok';
   },
 
-  // ---------------- touch controls (phones/tablets) ----------------
-  // Left half: floating joystick. Right side: dash button. Small pause button.
-  initTouch() {
-    document.body.classList.add('is-touch');
-    const hud = document.getElementById('hud');
+  // ---------------- responsive mode ----------------
+  // Phones/tablets (coarse pointer, small side): the UI overlay is un-scaled
+  // and laid out by CSS to fill the viewport; desktop keeps the 1280x720
+  // design space scaled onto the letterboxed stage.
+  computeMode() {
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const touchish = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    const forced = new URLSearchParams(location.search).get('mobile') === '1'; // desktop preview of the phone UI
+    const small = Math.min(window.innerWidth, window.innerHeight) <= 900;
+    this.touchMode = forced || ((coarse || touchish) && small);
+    document.body.classList.toggle('ui-free', this.touchMode);
+    document.body.classList.toggle('portrait', window.innerHeight > window.innerWidth);
+  },
 
+  // ---------------- touch controls (phones/tablets) ----------------
+  // Floating joystick (left half), DASH button (bottom right), pause (top right).
+  // Every pointer is tracked by pointerId, so move + dash + menu taps at the
+  // same time never steal or kill each other (the v1.1 multitouch bug).
+  installTouchInput() {
     const stick = document.createElement('div');
-    stick.id = 'stick'; stick.className = 'touch-el';
+    stick.id = 'stick';
     const knob = document.createElement('div');
     knob.id = 'stickknob';
     stick.appendChild(knob);
-    hud.appendChild(stick);
+    document.body.appendChild(stick);
+    this.stick = stick;
+
+    const DEAD = 0.14;          // below this the axis reads zero (no jitter)
+    const R = Math.max(48, Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.11)); // joystick radius, screen px
+    stick.style.width = stick.style.height = (R * 2 + 12) + 'px';
+    let pid = null;             // pointerId that owns the joystick
+    let ox = 0, oy = 0;         // joystick origin, screen px
+
+    const setKnob = (dx, dy) => { knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; };
+
+    const start = (e) => {
+      pid = e.pointerId;
+      ox = e.clientX; oy = e.clientY;
+      stick.style.left = (ox - R - 6) + 'px';
+      stick.style.top = (oy - R - 6) + 'px';
+      stick.classList.add('active');
+      move(e);
+    };
+
+    const move = (e) => {
+      let dx = e.clientX - ox, dy = e.clientY - oy;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > R) {
+        // drag-along: the origin follows the finger so sharp turns never
+        // require lifting the finger (classic mobile joystick feel)
+        ox = e.clientX - dx / d * R;
+        oy = e.clientY - dy / d * R;
+        stick.style.left = (ox - R - 6) + 'px';
+        stick.style.top = (oy - R - 6) + 'px';
+        dx = dx / d * R; dy = dy / d * R;
+      }
+      Input.touchAxis.x = dx / R;
+      Input.touchAxis.y = dy / R;
+      const m = Math.sqrt(Input.touchAxis.x * Input.touchAxis.x + Input.touchAxis.y * Input.touchAxis.y);
+      if (m < DEAD) { Input.touchAxis.x = 0; Input.touchAxis.y = 0; }
+      setKnob(dx, dy);
+    };
+
+    const end = () => {
+      pid = null;
+      Input.touchAxis.x = 0; Input.touchAxis.y = 0;
+      setKnob(0, 0);
+      stick.classList.remove('active');
+    };
+
+    window.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return;
+      if (pid !== null) return;                       // joystick already owned by another finger
+      if (!App.game || App.game.state !== 'playing') return; // menus / levelup / pause need taps, not a stick
+      if (e.clientX > window.innerWidth * 0.55) return; // right half: dash territory
+      if (e.target.closest && e.target.closest('.btn, .char-card, .upgrade-card, #key-input, #stick, #touchdash, #touchpause')) return;
+      e.preventDefault();
+      start(e);
+    }, { passive: false });
+    window.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== pid) return;                // only the owning finger drives the stick
+      e.preventDefault();
+      move(e);
+    }, { passive: false });
+    window.addEventListener('pointerup', (e) => {
+      if (e.pointerId !== pid) return;                // another finger lifting must NOT kill the stick
+      end();
+    });
+    window.addEventListener('pointercancel', (e) => {
+      if (e.pointerId !== pid) return;
+      end();
+    });
+    // safety: if the owning finger is lost for any reason, stop drifting
+    window.addEventListener('blur', end);
+  },
+
+  // visual buttons (created only on real touch devices)
+  initTouchUI() {
+    document.body.classList.add('is-touch');
+
+    const wrap = document.createElement('div');
+    wrap.id = 'touchui';
+    document.body.appendChild(wrap);
+    this.touchUI = wrap;
 
     const dash = document.createElement('button');
     dash.id = 'touchdash'; dash.className = 'touch-el';
@@ -50,8 +150,10 @@ const App = {
       e.preventDefault();
       AudioSys.ensure();
       Input.pressed.add('Space');
+      if (navigator.vibrate) navigator.vibrate(12);
     });
-    hud.appendChild(dash);
+    wrap.appendChild(dash);
+    this.touchDash = dash;
 
     const pause = document.createElement('button');
     pause.id = 'touchpause'; pause.className = 'touch-el';
@@ -61,59 +163,24 @@ const App = {
       AudioSys.ui();
       if (App.game && App.game.state === 'playing') App.setPaused(true);
     });
-    hud.appendChild(pause);
-
-    // floating joystick on the left half of the screen
-    let originX = 0, originY = 0, active = false;
-    const R = 46;
-    const setKnob = (dx, dy) => {
-      knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-    };
-    const onMove = (cx, cy) => {
-      let dx = cx - originX, dy = cy - originY;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      if (d > R) { dx = dx / d * R; dy = dy / d * R; }
-      Input.touchAxis.x = dx / R;
-      Input.touchAxis.y = dy / R;
-      setKnob(dx, dy);
-    };
-    this.stage.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'mouse') return;
-      if (e.target.closest('.btn, .char-card, .upgrade-card, #key-input, #touchdash, #touchpause')) return;
-      if (e.clientX - this.stage.getBoundingClientRect().left > this.stage.clientWidth * 0.55) return;
-      active = true;
-      originX = e.clientX; originY = e.clientY;
-      const r = stick.getBoundingClientRect();
-      const sr = this.stage.getBoundingClientRect();
-      stick.style.left = (e.clientX - sr.left - 59) + 'px';
-      stick.style.bottom = 'auto';
-      stick.style.top = (e.clientY - sr.top - 59) + 'px';
-      stick.style.display = 'flex';
-      onMove(e.clientX, e.clientY);
-    });
-    this.stage.addEventListener('pointermove', (e) => {
-      if (!active) return;
-      e.preventDefault();
-      onMove(e.clientX, e.clientY);
-    });
-    const end = () => {
-      active = false;
-      Input.touchAxis.x = 0; Input.touchAxis.y = 0;
-      setKnob(0, 0);
-      stick.style.display = '';
-      stick.style.top = ''; stick.style.bottom = '';
-      stick.style.left = '';
-    };
-    this.stage.addEventListener('pointerup', end);
-    this.stage.addEventListener('pointercancel', end);
+    wrap.appendChild(pause);
   },
 
   resize() {
+    this.computeMode();
     const s = Math.min(window.innerWidth / W, window.innerHeight / H);
     this.stage.style.width = Math.floor(W * s) + 'px';
     this.stage.style.height = Math.floor(H * s) + 'px';
     const ui = document.getElementById('ui');
-    ui.style.transform = 'scale(' + s + ')';
+    if (this.touchMode) {
+      // responsive mode: CSS (body.ui-free) makes #ui fill the viewport
+      ui.style.left = ''; ui.style.top = ''; ui.style.transform = '';
+    } else {
+      // desktop: overlay the scaled 1280x720 design space exactly on the stage
+      ui.style.left = Math.floor((window.innerWidth - W * s) / 2) + 'px';
+      ui.style.top = Math.floor((window.innerHeight - H * s) / 2) + 'px';
+      ui.style.transform = 'scale(' + s + ')';
+    }
   },
 
   startRun(charId) {
@@ -212,8 +279,19 @@ const App = {
       document.body.dataset.error = String(err && err.message || err);
     }
 
+    this.syncTouch(g);
     Input.endFrame();
     requestAnimationFrame((t) => this.loop(t));
+  },
+
+  // touch buttons: visible only during live play; DASH greys out while recharging
+  syncTouch(g) {
+    if (!this.touchUI) return;
+    const playing = g && g.state === 'playing';
+    this.touchUI.classList.toggle('hidden', !playing);
+    if (playing && this.touchDash && g.player) {
+      this.touchDash.classList.toggle('cooling', g.player.dashCharges === 0);
+    }
   }
 };
 
@@ -301,6 +379,31 @@ function selfTest() {
     const tb = Input.axis();
     if (Math.abs(Math.sqrt(tb.x * tb.x + tb.y * tb.y) - 1) > 0.01) return fail('touch-normalize');
     Input.touchAxis.x = 0; Input.touchAxis.y = 0;
+
+    // 0c — multitouch: a second finger (dash area) must not steal or kill the joystick
+    App.startRun('ember');
+    const simPtr = (type, id, x, y) => {
+      App.stage.dispatchEvent(new PointerEvent(type, {
+        pointerId: id, pointerType: 'touch', bubbles: true, cancelable: true, clientX: x, clientY: y
+      }));
+    };
+    const vw = window.innerWidth, vh = window.innerHeight;
+    simPtr('pointerdown', 101, Math.round(vw * 0.15), Math.round(vh * 0.6));   // finger 1: left half
+    simPtr('pointermove', 101, Math.round(vw * 0.15) + 40, Math.round(vh * 0.6));
+    const m1 = Input.axis();
+    if (!(m1.x > 0.2)) return fail('stick-no-move');
+    simPtr('pointerdown', 102, vw - 60, vh - 80);                              // finger 2: dash corner
+    simPtr('pointermove', 102, vw - 20, vh - 40);
+    simPtr('pointerup', 102);                                                  // dash finger lifts
+    const m2 = Input.axis();
+    if (Math.abs(m2.x - m1.x) > 0.01 || Math.abs(m2.y - m1.y) > 0.01) return fail('multitouch-steal');
+    simPtr('pointermove', 101, Math.round(vw * 0.15), Math.round(vh * 0.6) + 60); // finger 1 still in control
+    const m3 = Input.axis();
+    if (!(m3.y > 0.2)) return fail('stick-lost-after-second-finger');
+    simPtr('pointerup', 101);
+    const m4 = Input.axis();
+    if (m4.x !== 0 || m4.y !== 0) return fail('stick-not-released');
+    App.abandonRun();
 
     // 1 — license validation
     const good = makeLicenseKey();

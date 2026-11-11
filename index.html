@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
 <title>EMBERFALL · Feed the Flame</title>
 <meta name="description" content="The world went cold. You didn't. A neon survival roguelite. Free demo: First Spark.">
 <link rel="stylesheet" href="style.css">
@@ -11,8 +12,9 @@
 <body>
 <div id="stage">
   <canvas id="game" width="1280" height="720"></canvas>
+</div>
 
-  <div id="ui">
+<div id="ui">
 
     <!-- ===== HUD (gameplay only) ===== -->
     <div id="hud" class="hidden">
@@ -55,7 +57,7 @@
           <div><span class="key">SPACE</span><p>Dash · brief invulnerability</p></div>
           <div><span class="key">ESC</span><p>Pause</p></div>
           <div><span class="key">1</span><span class="key">2</span><span class="key">3</span><p>Pick upgrade</p></div>
-          <div><p class="wide">Your flame fires <b>automatically</b>. Collect embers to level up. Beat Sector 2 to clear the free edition. On phones and tablets: left side to move, right side to dash.</p></div>
+          <div><p class="wide">Your flame fires <b>automatically</b>. Collect embers to level up. Beat Sector 2 to clear the free edition. On phones: rotate to landscape, left side to move, right side to dash.</p></div>
         </div>
         <button id="btn-how-back" class="btn">BACK</button>
       </div>
@@ -157,7 +159,14 @@
     </div>
 
   </div>
-</div>
+
+  <!-- ===== ROTATE PROMPT (portrait phones) ===== -->
+  <div id="rotate">
+    <div class="rotate-phone">📱</div>
+    <h2>ROTATE YOUR PHONE</h2>
+    <p class="rotate-note">EMBERFALL plays in landscape.</p>
+  </div>
+
 <script src="js/core.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/entities.js"></script>

@@ -15,7 +15,10 @@ and play at the published URL.
 - SPACE: dash
 - 1 / 2 / 3: pick upgrades
 - ESC: pause
-- Touch: left side = joystick, DASH button = dash
+- Touch (landscape): left side = joystick, DASH button = dash
 - Your weapon fires automatically
+
+Plays in any modern browser, desktop or phone (landscape).
+Preview the phone UI on desktop with `index.html?mobile=1`.
 
 Beat Sector 2 to clear the free edition (First Spark).
